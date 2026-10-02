@@ -1,39 +1,47 @@
 package main
 
 import (
-	"context"
 	"log"
+	"net/http"
 	"os"
 
+	"github.com/Bobby-P-dev/search-enggine-go/src/configs"
+	"github.com/Bobby-P-dev/search-enggine-go/src/controllers"
+	"github.com/Bobby-P-dev/search-enggine-go/src/repositories"
+	"github.com/Bobby-P-dev/search-enggine-go/src/routes"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
 
+var db *pgxpool.Pool
+
 func main() {
-	ctx := context.Background()
+	if err := godotenv.Load(); err != nil {
+		log.Println("Peringatan: file .env tidak ditemukan, menggunakan environment variable sistem")
+	}
 
-	err := godotenv.Load()
+	var err error
+	db, err = configs.ConnectDB()
 	if err != nil {
-		log.Fatalf("Error loading .env file: %s", err)
+		log.Fatalf("Gagal terhubung ke database: %v\n", err)
 	}
-
-	dbUrl := os.Getenv("DATABASE_URL")
-
-	if dbUrl == "" {
-		log.Fatal("DATABASE_URL is not set")
-	}
-
-	db, err := pgxpool.New(ctx, dbUrl)
-	if err != nil {
-		log.Fatalf("Unable to connect to database: %v\n", err)
-	}
-
 	defer db.Close()
 
-	err = db.Ping(ctx)
-	if err != nil {
-		log.Fatalf("Error pinging database: %v\n", err)
+	log.Println("Successfully connected to database")
+
+	userRepository := repositories.NewUserRepositoryImpl(db)
+	userController := controllers.NewUserControllerImpl(db, userRepository)
+	router := routes.SetupRoutes(userController)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
 
-	log.Println("Successfully connected to database")
+	log.Printf("Server berjalan di http://localhost:%s\n", port)
+	log.Printf("Endpoint user tersedia di http://localhost:%s/api/v1/users\n", port)
+
+	if err := http.ListenAndServe(":"+port, router); err != nil {
+		log.Fatalf("Server gagal berjalan: %v\n", err)
+	}
 }
