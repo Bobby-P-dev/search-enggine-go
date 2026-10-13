@@ -7,6 +7,7 @@ import (
 
 	"github.com/Bobby-P-dev/search-enggine-go/src/configs"
 	"github.com/Bobby-P-dev/search-enggine-go/src/controllers"
+	"github.com/Bobby-P-dev/search-enggine-go/src/mqttclient"
 	"github.com/Bobby-P-dev/search-enggine-go/src/repositories"
 	"github.com/Bobby-P-dev/search-enggine-go/src/routes"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -29,9 +30,16 @@ func main() {
 
 	log.Println("Successfully connected to database")
 
+	mqttPublisher, err := mqttclient.NewPublisher("", "")
+	if err != nil {
+		log.Fatalf("Failed to connect to MQTT broker: %v\n", err)
+	}
+	defer mqttPublisher.Close()
+
 	userRepository := repositories.NewUserRepositoryImpl(db)
 	userController := controllers.NewUserControllerImpl(db, userRepository)
-	router := routes.SetupRoutes(userController)
+	deviceController := controllers.NewDeviceControllerImpl(mqttPublisher)
+	router := routes.SetupRoutes(userController, deviceController)
 
 	port := os.Getenv("PORT")
 	if port == "" {

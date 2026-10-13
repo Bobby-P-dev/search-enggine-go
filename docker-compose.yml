@@ -32,6 +32,32 @@ services:
       timeout: 5s
       retries: 5
 
+  emqx1:
+    image: emqx:latest
+    container_name: emqx1
+    restart: unless-stopped
+    environment:
+      - EMQX_NODE__NAME=emqx1@localhost
+      - EMQX_DASHBOARD__DEFAULT_USERNAME=admin
+      - EMQX_DASHBOARD__DEFAULT_PASSWORD=admin
+    ports:
+      - "1883:1883"      # MQTT TCP Standar (Backend Go & Device IoT)
+      - "8883:8883"      # MQTT SSL/TLS (Koneksi Aman)
+      - "8083:8083"      # MQTT over WebSocket (Frontend React)
+      - "8084:8084"      # MQTT over WSS (Secure WebSocket)
+      # Antarmuka Web & REST API
+      - "18083:18083"
+    volumes:
+      - vol-emqx-data:/var/lib/emqx/data
+      - vol-emqx-log:/var/lib/emqx/log
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:18083/api/v5/health" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres_data:
   redis_data:
+  vol-emqx-data:
+  vol-emqx-log:
