@@ -1,8 +1,11 @@
 package mqttclient
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"strings"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -12,6 +15,10 @@ const (
 	DefaultBrokerURL = "tcp://test.mosquitto.org:1883"
 	DefaultTopic     = "smarthome/lab-a7f48e/lamp-bedroom/set"
 )
+
+type LampStateMessage struct {
+	State string `json:"state"`
+}
 
 type Publisher struct {
 	client mqtt.Client
@@ -79,4 +86,48 @@ func (p *Publisher) PublishLampCommand(state string) error {
 
 func (p *Publisher) Close() {
 	p.client.Disconnect(250)
+}
+
+func (p *Publisher) SubscribeLampState(
+	onState func(state string),
+) error {
+	if !strings.HasSuffix(p.topic, "/set") {
+		return errors.New("invalid command topic")
+	}
+
+	topic := strings.TrimSuffix(p.topic, "/set") + "/state"
+
+	token := p.client.Subscribe(
+		topic,
+		0,
+		func(client mqtt.Client, msg mqtt.Message) {
+			var event LampStateMessage
+
+			if err := json.Unmarshal(
+				msg.Payload(),
+				&event,
+			); err != nil {
+				log.Printf("[MQTT] Invalid JSON: %v", err)
+				return
+			}
+
+			if event.State != "ON" && event.State != "OFF" {
+				log.Println("[MQTT] Unknown device state")
+				return
+			}
+
+			log.Printf(
+				"[MQTT] Device state received: %s",
+				event.State,
+			)
+
+			onState(event.State)
+		},
+	)
+
+	if !token.WaitTimeout(5 * time.Second) {
+		return errors.New("MQTT subscribe timeout")
+	}
+
+	return token.Error()
 }

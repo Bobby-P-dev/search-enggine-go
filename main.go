@@ -36,6 +36,18 @@ func main() {
 	}
 	defer mqttPublisher.Close()
 
+	err = mqttPublisher.SubscribeLampState(
+		func(state string) {
+			log.Printf(
+				"[SMART HOME] Lamp state: %s",
+				state,
+			)
+		},
+	)
+	if err != nil {
+		log.Fatalf("Subscribe failed: %v", err)
+	}
+
 	userRepository := repositories.NewUserRepositoryImpl(db)
 	userController := controllers.NewUserControllerImpl(db, userRepository)
 	deviceController := controllers.NewDeviceControllerImpl(mqttPublisher)
